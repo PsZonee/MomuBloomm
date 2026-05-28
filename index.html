@@ -1591,5 +1591,81 @@ document.addEventListener('keydown', e => {
   }
 });
 </script>
+
+<!-- ═════════════════════════════════════════════════════════════════
+   MASARP STUDIO – REVENUE OPTIMIZED 3-MINUTE AD CONTROLLER
+   ═════════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+    // Array holding both of your verified direct links
+    const APP_AD_LINKS = [
+        "https://omg10.com/4/11068238", // Link 1: MomuBloom Interstitial
+        "https://omg10.com/4/10849099"  // Link 2: Bright Link
+    ];
+
+    let lastAdShownTime = 0;
+    let currentLinkIndex = 0;
+
+    // COOLDOWN CONFIGURATION: 3 minutes (3 mins * 60 secs * 1000 ms)
+    // An ad will trigger on a click ONLY if 3 minutes have passed since the last one.
+    const AD_COOLDOWN_PERIOD = 3 * 60 * 1000; 
+
+    /**
+     * Balanced Revenue Trigger Engine
+     */
+    function triggerAppInterstitial() {
+        const currentTime = Date.now();
+
+        // Only execute if the 3-minute safety window has cleared
+        if (currentTime - lastAdShownTime > AD_COOLDOWN_PERIOD) {
+            lastAdShownTime = currentTime;
+
+            // Select current link and cycle the index array for the next round
+            const selectedAdUrl = APP_AD_LINKS[currentLinkIndex];
+            currentLinkIndex = (currentLinkIndex + 1) % APP_AD_LINKS.length;
+
+            console.log("3 minutes passed. Triggering ad link: " + selectedAdUrl);
+
+            // Open the monetization campaign link cleanly
+            if (window.open) {
+                window.open(selectedAdUrl, '_blank', 'noopener,noreferrer');
+            }
+        } else {
+            // Calculates remaining seconds for debug logs if needed
+            const remainingTime = Math.ceil((AD_COOLDOWN_PERIOD - (currentTime - lastAdShownTime)) / 1000);
+            console.log("Ad blocked by safety filter. Wait " + remainingTime + " more seconds.");
+        }
+    }
+
+    /**
+     * Standard UI Event Binding
+     */
+    function bindAppEvents() {
+        // 1. Monitors clicks on all navigation tabs / bottom menu items
+        const appTabs = document.querySelectorAll('.nav-btn, .tab-btn');
+        appTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                triggerAppInterstitial();
+            });
+        });
+
+        // 2. Monitors clicks on core operational buttons (Save, Check, Submit buttons)
+        const coreButtons = document.querySelectorAll('.action-btn, button, #profile-save, #save-appt, #submit-symptoms');
+        coreButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                triggerAppInterstitial();
+            });
+        });
+    }
+
+    // Initialize layout binding safely
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bindAppEvents);
+    } else {
+        bindAppEvents();
+    }
+})();
+</script>
+
 </body>
 </html>
