@@ -1644,7 +1644,36 @@ function clearData() {
   }
 }
 
-// Close modals on overlay click
+// ═══════════════════════════════════════════
+// INTERCEPT AD CLICKS - OPEN IN SAME WINDOW
+// ═══════════════════════════════════════════
+document.addEventListener('click', function(e) {
+  const link = e.target.closest('a');
+  if (link && link.href && link.target === '_blank') {
+    e.preventDefault();
+    window.location.href = link.href;
+  }
+}, true);
+
+// Block all attempts to open external browser
+window.open = function(url) {
+  if (url) window.location.href = url;
+  return window;
+};
+
+// Intercept any dynamically added links from ads
+const observer = new MutationObserver(function(mutations) {
+  mutations.forEach(function(mutation) {
+    mutation.addedNodes.forEach(function(node) {
+      if (node.nodeType === 1) {
+        node.querySelectorAll && node.querySelectorAll('a[target="_blank"]').forEach(function(a) {
+          a.removeAttribute('target');
+        });
+      }
+    });
+  });
+});
+observer.observe(document.body, { childList: true, subtree: true });
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => {
     if (e.target === o) {
