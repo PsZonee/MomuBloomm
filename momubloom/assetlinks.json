@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.masarpstudio.momubloom",
+    "sha256_cert_fingerprints": ["C5:A3:87:C5:02:E8:09:17:B7:6B:FB:7A:D1:05:27:18:12:49:09:48:46:2E:5E:38:02:FE:67:60:96:9E:D2:09"]
+  }
+}]
