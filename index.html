@@ -20,8 +20,96 @@
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6966908083560987"
      crossorigin="anonymous"></script>
 
-<!-- Adsterra Social Bar -->
-<script src="https://pl29578097.effectivecpmnetwork.com/3b/ab/25/3bab2583f314c722900d7faa820d583e.js"></script>
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  NAVIGATION HIJACK SHIELD                                    ║
+  ║  Runs BEFORE any ad network code loads.                      ║
+  ║  Blocks top-level redirects while keeping ads working.       ║
+  ╚══════════════════════════════════════════════════════════════╝
+  The Adsterra Social Bar script has been MOVED to a sandboxed
+  iframe at the bottom of <body> so it cannot touch window.top.
+-->
+<script>
+(function(){
+  'use strict';
+
+  /* ── 1. Intercept location.href setter ──────────────────────
+     Ad scripts call: window.location.href = "https://spam.site"
+     We allow only: tel: links (SOS), hash jumps, same-origin   */
+  try {
+    var locDesc = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
+    Object.defineProperty(Location.prototype, 'href', {
+      configurable: true,
+      enumerable:   true,
+      get: locDesc.get,
+      set: function(v) {
+        if (typeof v === 'string') {
+          var allowed =
+            v.startsWith('tel:')   ||   // SOS call button
+            v.startsWith('#')       ||   // hash navigation
+            v === '' ||
+            (v.indexOf('://') === -1)    // relative URLs
+          ;
+          if (allowed) { locDesc.set.call(this, v); }
+          // else: silently swallow the redirect
+        }
+      }
+    });
+  } catch(e){}
+
+  /* ── 2. Block document.location redirect ───────────────────── */
+  try {
+    Object.defineProperty(document, 'location', {
+      configurable: false,
+      get: function(){ return window.location; },
+      set: function(v){
+        if (typeof v === 'string' && (v.startsWith('tel:') || v.startsWith('#'))) {
+          window.location.href = v;
+        }
+      }
+    });
+  } catch(e){}
+
+  /* ── 3. window.open → always _blank, never _top/_self ──────── */
+  var _open = window.open;
+  window.open = function(url, target, features){
+    if (!url) return null;
+    return _open.call(window, url, '_blank', (features||'') + ',noopener,noreferrer');
+  };
+
+  /* ── 4. Neutralise window.top / window.parent ───────────────
+     Sandboxed iframes already can't touch top, but belt+braces  */
+  try {
+    Object.defineProperty(window, 'top',    { get: function(){ return window; }, configurable: false });
+    Object.defineProperty(window, 'parent', { get: function(){ return window; }, configurable: false });
+  } catch(e){}
+
+  /* ── 5. MutationObserver: strip target="_top/_parent/_self"
+     from any link the ad injects after the page loads ─────────  */
+  function sanitiseLinks(root){
+    (root.querySelectorAll ? root : document).querySelectorAll('a[target]').forEach(function(a){
+      var t = (a.getAttribute('target')||'').toLowerCase();
+      if (t === '_top' || t === '_parent' || t === '_self'){
+        a.setAttribute('target','_blank');
+        a.setAttribute('rel','noopener noreferrer');
+      }
+    });
+  }
+  var mo = new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if (n.nodeType === 1) sanitiseLinks(n);
+      });
+    });
+  });
+  document.addEventListener('DOMContentLoaded', function(){
+    mo.observe(document.body, { childList: true, subtree: true });
+    sanitiseLinks(document);
+  });
+
+})();
+</script>
+
 <style>
 :root {
   --rose: #E8A0A8;
@@ -72,6 +160,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+/* Sandboxed ad iframes — no border, full width */
+.ad-banner iframe.ad-sandbox {
+  border: none;
+  display: block;
+  max-width: 100%;
 }
 .ad-banner ins.adsbygoogle {
   display: block;
@@ -224,7 +318,6 @@ body {
   flex:1; overflow-y:auto; padding:24px 24px 0;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-}
 }
 .consent-scroll h2 {
   font-family:'Playfair Display', serif; font-size:22px;
@@ -818,19 +911,17 @@ body {
           </div>
         </div>
 
-        <!-- Ad Banner: Home Tab (300x250) -->
+        <!-- Ad Banner: Home Tab — SANDBOXED (cannot redirect main page) -->
         <p class="ad-label">Advertisement</p>
         <div class="ad-banner" aria-label="Advertisement" role="complementary">
-          <script>
-            atOptions = {
-              'key' : '3f69c5c12b5a0f784cb0fab8731437ad',
-              'format' : 'iframe',
-              'height' : 250,
-              'width' : 300,
-              'params' : {}
-            };
-          </script>
-          <script src="https://www.highperformanceformat.com/3f69c5c12b5a0f784cb0fab8731437ad/invoke.js"></script>
+          <iframe
+            class="ad-sandbox"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+            style="width:300px;height:250px;border:none;display:block;"
+            loading="lazy"
+            srcdoc="<!DOCTYPE html><html><head><style>*{margin:0;padding:0;overflow:hidden}</style></head><body><script>atOptions={'key':'3f69c5c12b5a0f784cb0fab8731437ad','format':'iframe','height':250,'width':300,'params':{}}<\/script><script src='https://www.highperformanceformat.com/3f69c5c12b5a0f784cb0fab8731437ad/invoke.js'><\/script></body></html>"
+            title="Advertisement">
+          </iframe>
         </div>
 
         <div class="section-title">Today's Tip</div>
@@ -855,11 +946,17 @@ body {
         </div>
         <div id="tips-list" aria-live="polite"></div>
 
-        <!-- Ad Banner: Tips Tab (Native Banner) -->
+        <!-- Ad Banner: Tips Tab — SANDBOXED -->
         <p class="ad-label">Advertisement</p>
         <div class="ad-banner" aria-label="Advertisement" role="complementary">
-          <script async="async" data-cfasync="false" src="https://pl29578095.effectivecpmnetwork.com/ca300ee6b2225e9eed49ed1f4e7f880c/invoke.js"></script>
-          <div id="container-ca300ee6b2225e9eed49ed1f4e7f880c"></div>
+          <iframe
+            class="ad-sandbox"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+            style="width:100%;min-height:90px;border:none;display:block;"
+            loading="lazy"
+            srcdoc="<!DOCTYPE html><html><head><style>*{margin:0;padding:0;overflow:hidden}</style></head><body><script async='async' data-cfasync='false' src='https://pl29578095.effectivecpmnetwork.com/ca300ee6b2225e9eed49ed1f4e7f880c/invoke.js'><\/script><div id='container-ca300ee6b2225e9eed49ed1f4e7f880c'></div></body></html>"
+            title="Advertisement">
+          </iframe>
         </div>
 
         <div class="masarp-footer">By <span>MASARP STUDIO & Research Dhamala</span></div>
@@ -996,20 +1093,19 @@ body {
           </a>
 
           <h4>About</h4>
-          <!-- Ad Banner: Settings Tab (320x50) -->
+          <!-- Ad Banner: Settings Tab — SANDBOXED -->
           <p class="ad-label" style="padding:0">Advertisement</p>
           <div class="ad-banner" style="margin:0 0 16px" aria-label="Advertisement" role="complementary">
-            <script>
-              atOptions = {
-                'key' : '6040709dc6935831e120675b6a4c8919',
-                'format' : 'iframe',
-                'height' : 50,
-                'width' : 320,
-                'params' : {}
-              };
-            </script>
-            <script src="https://www.highperformanceformat.com/6040709dc6935831e120675b6a4c8919/invoke.js"></script>
+            <iframe
+              class="ad-sandbox"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+              style="width:320px;height:50px;border:none;display:block;"
+              loading="lazy"
+              srcdoc="<!DOCTYPE html><html><head><style>*{margin:0;padding:0;overflow:hidden}</style></head><body><script>atOptions={'key':'6040709dc6935831e120675b6a4c8919','format':'iframe','height':50,'width':320,'params':{}}<\/script><script src='https://www.highperformanceformat.com/6040709dc6935831e120675b6a4c8919/invoke.js'><\/script></body></html>"
+              title="Advertisement">
+            </iframe>
           </div>
+
           <div class="settings-item">
             <div class="settings-item-left">
               <i class="fas fa-info-circle" aria-hidden="true"></i>
@@ -1053,7 +1149,17 @@ body {
     </button>
   </div>
 
-</div><div class="modal-overlay" id="sos-modal" role="dialog" aria-modal="true" aria-labelledby="sos-modal-title">
+</div>
+
+<!-- Adsterra Social Bar — SANDBOXED: runs isolated, cannot touch main window -->
+<iframe
+  sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+  style="position:fixed;bottom:0;left:0;width:0;height:0;border:none;pointer-events:none;"
+  srcdoc="<!DOCTYPE html><html><head></head><body><script src='https://pl29578097.effectivecpmnetwork.com/3b/ab/25/3bab2583f314c722900d7faa820d583e.js'><\/script></body></html>"
+  title="Ad">
+</iframe>
+
+<div class="modal-overlay" id="sos-modal" role="dialog" aria-modal="true" aria-labelledby="sos-modal-title">
   <div class="modal-sheet">
     <button class="modal-close" id="sos-close" aria-label="Close SOS modal"><i class="fas fa-times" aria-hidden="true"></i></button>
     <h3 id="sos-modal-title">🚨 Emergency Help</h3>
@@ -1122,9 +1228,7 @@ function playTone(freq, type, duration, vol=0.3) {
   } catch(e){}
 }
 
-function playChime() { // Welcoming chime
-  [523, 659, 784, 1047].forEach((f,i) => setTimeout(() => playTone(f,'sine',0.4,0.2), i*120));
-}
+function playChime() { [523, 659, 784, 1047].forEach((f,i) => setTimeout(() => playTone(f,'sine',0.4,0.2), i*120)); }
 function playClick() { playTone(880,'sine',0.06,0.15); }
 function playSuccess() { [523,659,784].forEach((f,i)=>setTimeout(()=>playTone(f,'sine',0.3,0.2),i*100)); }
 function playWarning() { [400,300,400].forEach((f,i)=>setTimeout(()=>playTone(f,'sawtooth',0.2,0.12),i*200)); }
@@ -1137,7 +1241,6 @@ function playCalendar() { playTone(528,'sine',0.15,0.2); }
 // DATA
 // ═══════════════════════════════════════════
 const TIPS = [
-  // First Trimester
   {week:1,category:'nutrition',icon:'🥦',title:'Start Folic Acid',text:'Take 400–600 mcg of folic acid daily to help prevent neural tube defects. Include leafy greens and fortified cereals in your diet.',source:'CDC / ACOG'},
   {week:2,category:'nutrition',icon:'💧',title:'Stay Hydrated',text:'Aim for 8–10 glasses of water daily. Proper hydration helps form amniotic fluid and supports increased blood volume.',source:'NHS'},
   {week:3,category:'nutrition',icon:'🥑',title:'Avocados for Health',text:'Avocados are rich in monounsaturated fats, potassium, and vitamin B6, which can help relieve morning sickness and promote your baby\'s tissue growth.',source:'ACOG'},
@@ -1150,7 +1253,6 @@ const TIPS = [
   {week:10,category:'nutrition',icon:'🥩',title:'Iron-Rich Foods',text:'Aim for 27 mg of iron daily. Eat red meat, beans, and spinach with vitamin C to boost absorption and prevent anemia.',source:'ACOG'},
   {week:11,category:'warning',icon:'⚠️',title:'First Trimester Warning Signs',text:'Seek immediate care for: heavy bleeding, severe cramping, or fluid leakage. Light spotting can be normal, but always report it.',source:'CDC'},
   {week:12,category:'general',icon:'🧬',title:'Genetic Screening Option',text:'Nuchal translucency ultrasound and blood cfDNA tests are offered around week 12 to screen for chromosomal conditions.',source:'Johns Hopkins'},
-  // Second Trimester
   {week:13,category:'nutrition',icon:'🍓',title:'Berries for Hydration',text:'Berries are packed with water, healthy carbs, vitamin C, and fiber. They are a great low-glycemic snack to satisfy sweet cravings.',source:'NHS'},
   {week:14,category:'exercise',icon:'🧘‍♀️',title:'Prenatal Yoga',text:'Yoga and swimming are excellent second-trimester exercises. Avoid contact sports and activities with fall risk.',source:'ACOG'},
   {week:15,category:'nutrition',icon:'🥬',title:'Leafy Greens',text:'Spinach, kale, and Swiss chard are loaded with folate, iron, and calcium. They also provide fiber to help prevent constipation.',source:'CDC'},
@@ -1160,7 +1262,6 @@ const TIPS = [
   {week:24,category:'general',icon:'🩸',title:'Glucose Tolerance Test',text:'Gestational diabetes screening (glucose tolerance test) is typically done at 24–28 weeks. Stay calm — it\'s routine.',source:'ACOG'},
   {week:26,category:'warning',icon:'🔴',title:'Pre-eclampsia Watch',text:'Watch for persistent headaches, vision changes, or severe swelling in the 2nd and 3rd trimester — these may indicate pre-eclampsia. Report immediately.',source:'CDC HEAR HER'},
   {week:27,category:'general',icon:'💉',title:'Tdap Vaccine',text:'The Tdap (pertussis) booster is recommended at 27–36 weeks to pass immunity to your newborn before birth.',source:'CDC'},
-  // Third Trimester
   {week:28,category:'exercise',icon:'🤸‍♀️',title:'Pelvic Floor Exercises',text:'Kegel exercises strengthen pelvic floor muscles and may ease labor. Avoid lying on your back after week 28.',source:'NHS'},
   {week:30,category:'nutrition',icon:'🍽️',title:'Third Trimester Nutrition',text:'Add ~200 extra kcal/day in the 3rd trimester. Eat smaller, more frequent meals to manage heartburn and acid reflux.',source:'NHS'},
   {week:32,category:'general',icon:'💉',title:'RSV Vaccine',text:'The RSV vaccine (Abrysvo) is now recommended at 32–36 weeks to protect your newborn from respiratory illness.',source:'CDC'},
@@ -1198,29 +1299,18 @@ let calDate = new Date();
 // AUDIO UNLOCK & APP LAUNCH
 // ═══════════════════════════════════════════
 document.getElementById('tap-to-start').addEventListener('click', function() {
-  // Hide tap overlay
   this.style.display = 'none';
-  
-  // Initialize and resume AudioContext immediately on user tap
-  getCtx().resume().then(() => {
-    playChime();
-  });
-
-  // Launch the animation sequence
+  getCtx().resume().then(() => { playChime(); });
   setTimeout(() => {
     document.getElementById('masarp-splash').style.opacity = '0';
     document.getElementById('masarp-splash').style.transition = 'opacity 0.8s ease';
     setTimeout(() => {
       document.getElementById('masarp-splash').style.display = 'none';
       document.getElementById('app').style.display = 'flex';
-      if (profile) {
-        showScreen('screen-app');
-        initApp();
-      } else {
-        showScreen('screen-onboarding');
-      }
+      if (profile) { showScreen('screen-app'); initApp(); }
+      else { showScreen('screen-onboarding'); }
     }, 800);
-  }, 2000); // Wait 2 seconds showing splash before fading
+  }, 2000);
 });
 
 function showScreen(id) {
@@ -1266,11 +1356,7 @@ const consentBtn = document.getElementById('consent-submit');
   playClick();
   consentBtn.disabled = !(c1.checked && c2.checked);
 }));
-
-consentBtn.addEventListener('click', () => {
-  playSuccess();
-  showScreen('screen-profile');
-});
+consentBtn.addEventListener('click', () => { playSuccess(); showScreen('screen-profile'); });
 
 // ═══════════════════════════════════════════
 // PROFILE SETUP
@@ -1295,14 +1381,13 @@ document.getElementById('profile-save').addEventListener('click', () => {
     const lmpEst = new Date(dueDate.getTime() - 280 * 86400000);
     gestWeek = Math.floor((Date.now() - lmpEst.getTime()) / (7 * 86400000));
   } else {
-    dueDate = new Date(Date.now() + 180 * 86400000); // default ~6 months out
+    dueDate = new Date(Date.now() + 180 * 86400000);
     gestWeek = 20;
   }
   gestWeek = Math.max(1, Math.min(42, gestWeek));
 
   profile = { name, age, lmp, dueDate: dueDate.toISOString(), gestWeek, allergies, meds, econtact, ephone, savedAt: Date.now() };
   localStorage.setItem('bc_profile', JSON.stringify(profile));
-
   playSave();
   showScreen('screen-app');
   initApp();
@@ -1356,18 +1441,15 @@ function getTipForWeek(week) {
   const sorted = [...TIPS].sort((a,b) => Math.abs(a.week-week) - Math.abs(b.week-week));
   return sorted[0];
 }
-
 function buildHomeTip() {
   const week = getGestWeek();
   const tip = getTipForWeek(week);
   document.getElementById('home-tip-card').innerHTML = tipCardHTML(tip);
 }
-
 function tipCardHTML(tip) {
-  const iconClass = tip.category;
   return `
     <div class="tip-header">
-      <div class="tip-icon ${iconClass}" role="img" aria-label="${tip.category} tip">${tip.icon}</div>
+      <div class="tip-icon ${tip.category}" role="img" aria-label="${tip.category} tip">${tip.icon}</div>
       <div>
         <div class="tip-category">${tip.category}</div>
         <div class="tip-title">${tip.title}</div>
@@ -1410,7 +1492,6 @@ function updateApptList() {
   const upcoming = appointments.filter(a => new Date(a.date).getTime() >= now)
     .sort((a,b) => new Date(a.date) - new Date(b.date));
 
-  // Home preview
   const preview = document.getElementById('home-appt-preview');
   if (upcoming.length === 0) {
     preview.innerHTML = '<div class="no-appt">No upcoming appointments. Add one in Calendar!</div>';
@@ -1427,7 +1508,6 @@ function updateApptList() {
     }).join('');
   }
 
-  // Calendar list
   const listEl = document.getElementById('appt-list-items');
   if (upcoming.length === 0) {
     listEl.innerHTML = '<div class="no-appt" style="padding:12px 0;text-align:left">No upcoming appointments</div>';
@@ -1448,9 +1528,8 @@ function updateApptList() {
       </div>`;
     }).join('');
   }
-
   document.getElementById('stat-appts').textContent = appointments.length;
-  buildCalendar(); // refresh dots
+  buildCalendar();
 }
 
 document.getElementById('toggle-add-appt').addEventListener('click', () => {
@@ -1489,37 +1568,23 @@ function deleteAppt(i) {
 // ═══════════════════════════════════════════
 // CALENDAR
 // ═══════════════════════════════════════════
-document.getElementById('cal-prev').addEventListener('click', () => {
-  playSlide();
-  calDate.setMonth(calDate.getMonth() - 1);
-  buildCalendar();
-});
-document.getElementById('cal-next').addEventListener('click', () => {
-  playSlide();
-  calDate.setMonth(calDate.getMonth() + 1);
-  buildCalendar();
-});
+document.getElementById('cal-prev').addEventListener('click', () => { playSlide(); calDate.setMonth(calDate.getMonth() - 1); buildCalendar(); });
+document.getElementById('cal-next').addEventListener('click', () => { playSlide(); calDate.setMonth(calDate.getMonth() + 1); buildCalendar(); });
 
 function buildCalendar() {
   const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   document.getElementById('cal-month-label').textContent = months[calDate.getMonth()] + ' ' + calDate.getFullYear();
-
   const grid = document.getElementById('cal-grid');
   const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   let html = days.map(d => `<div class="cal-day-name">${d}</div>`).join('');
-
   const first = new Date(calDate.getFullYear(), calDate.getMonth(), 1);
   const last = new Date(calDate.getFullYear(), calDate.getMonth()+1, 0);
   const today = new Date();
-
   const apptDays = new Set(appointments.map(a => {
     const d = new Date(a.date);
     return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
   }));
-
-  // padding
   for (let i=0;i<first.getDay();i++) html += `<div class="cal-day other-month"></div>`;
-
   for (let d=1;d<=last.getDate();d++) {
     const isToday = today.getFullYear()===calDate.getFullYear() && today.getMonth()===calDate.getMonth() && today.getDate()===d;
     const key = `${calDate.getFullYear()}-${calDate.getMonth()}-${d}`;
@@ -1535,9 +1600,9 @@ function buildCalendar() {
 function buildSymptoms() {
   const list = document.getElementById('symptom-list');
   list.innerHTML = SYMPTOMS.map(s => `
-    <div class="symptom-row${s.urgent?' urgent-symptom':''}" 
-         data-id="${s.id}" 
-         role="checkbox" 
+    <div class="symptom-row${s.urgent?' urgent-symptom':''}"
+         data-id="${s.id}"
+         role="checkbox"
          aria-checked="false"
          tabindex="0"
          aria-label="${s.label}: ${s.sub}">
@@ -1566,7 +1631,6 @@ function buildSymptoms() {
 document.getElementById('submit-symptoms').addEventListener('click', () => {
   const urgentChecked = SYMPTOMS.filter(s => s.urgent && checkedSymptoms.has(s.id));
   const normalChecked = SYMPTOMS.filter(s => !s.urgent && checkedSymptoms.has(s.id));
-
   let html = '';
   if (checkedSymptoms.size === 0) {
     html = `<div class="advice-normal"><p style="color:var(--sage)"><strong>✅ No symptoms selected.</strong></p><p style="margin-top:8px">That's great! Continue your normal routine and attend your scheduled prenatal appointments.</p></div>`;
@@ -1588,7 +1652,6 @@ document.getElementById('submit-symptoms').addEventListener('click', () => {
     });
     html += `</div><p style="font-size:13px;color:var(--text-soft);margin-top:12px">If any symptom worsens suddenly, contact your provider or call emergency services.</p>`;
   }
-
   document.getElementById('advice-content').innerHTML = html;
   document.getElementById('advice-modal').classList.add('open');
   document.getElementById('advice-modal').setAttribute('aria-hidden','false');
@@ -1611,7 +1674,6 @@ document.getElementById('sos-btn').addEventListener('click', () => {
   document.getElementById('sos-modal').setAttribute('aria-hidden','false');
   document.getElementById('call-emergency').focus();
 });
-
 ['sos-close','sos-close2'].forEach(id => {
   document.getElementById(id).addEventListener('click', () => {
     playClick();
@@ -1619,16 +1681,15 @@ document.getElementById('sos-btn').addEventListener('click', () => {
     document.getElementById('sos-modal').setAttribute('aria-hidden','true');
   });
 });
-
 document.getElementById('call-emergency').addEventListener('click', () => {
   playSOS();
-  window.location.href = 'tel:911';
+  // Use direct assignment here — SOS is a legitimate tel: link our shield allows
+  window.location.assign('tel:911');
 });
-
 document.getElementById('call-contact').addEventListener('click', () => {
   playSOS();
   const phone = profile && profile.ephone ? profile.ephone : '';
-  if (phone) { window.location.href = 'tel:' + phone.replace(/\s/g,''); }
+  if (phone) { window.location.assign('tel:' + phone.replace(/\s/g,'')); }
   else { alert('No emergency contact saved. Please add one in your profile settings.'); }
 });
 
@@ -1649,7 +1710,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 });
 
 // ═══════════════════════════════════════════
-// DATA CLEAR & UTILS
+// DATA CLEAR
 // ═══════════════════════════════════════════
 function clearData() {
   if (confirm('This will permanently delete all your MomuBloom data. Continue?')) {
@@ -1666,51 +1727,16 @@ function clearData() {
 }
 
 // ═══════════════════════════════════════════
-// INTERCEPT AD CLICKS - OPEN IN SAME WINDOW
+// MODAL CLOSE ON BACKDROP TAP
 // ═══════════════════════════════════════════
-document.addEventListener('click', function(e) {
-  const link = e.target.closest('a');
-  if (link && link.href && link.target === '_blank') {
-    e.preventDefault();
-    window.location.href = link.href;
-  }
-}, true);
-
-// Block all attempts to open external browser
-window.open = function(url) {
-  if (url) window.location.href = url;
-  return window;
-};
-
-// Intercept any dynamically added links from ads
-const observer = new MutationObserver(function(mutations) {
-  mutations.forEach(function(mutation) {
-    mutation.addedNodes.forEach(function(node) {
-      if (node.nodeType === 1) {
-        node.querySelectorAll && node.querySelectorAll('a[target="_blank"]').forEach(function(a) {
-          a.removeAttribute('target');
-        });
-      }
-    });
-  });
-});
-observer.observe(document.body, { childList: true, subtree: true });
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => {
-    if (e.target === o) {
-      playClick();
-      o.classList.remove('open');
-    }
+    if (e.target === o) { playClick(); o.classList.remove('open'); }
   });
 });
-
-// Escape key closes modals
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    document.querySelectorAll('.modal-overlay.open').forEach(o => {
-      playClick();
-      o.classList.remove('open');
-    });
+    document.querySelectorAll('.modal-overlay.open').forEach(o => { playClick(); o.classList.remove('open'); });
   }
 });
 </script>
